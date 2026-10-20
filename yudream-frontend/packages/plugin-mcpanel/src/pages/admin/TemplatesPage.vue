@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { YdLoadingOverlay } from '@yudream/components'
+import { YdLoadingOverlay, YdTablePageLayout } from '@yudream/components'
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
-import type { TableColumn } from '@yudream/components'
-import { YdButton, YdCard, YdIcon, YdInput, YdPageHeader, YdPageMain, YdPagination, YdResponsiveTable, YdSearchBar, YdSelect, YdTag, useYdModal, useYdToast } from '@yudream/components'
+import type { TableColumn, ActionMenuItem } from '@yudream/components'
+import { YdButton, YdIcon, YdInput, YdPageMain, YdPagination, YdSelect, YdTag, useYdModal, useYdToast, YdResponsiveEnhancedTable } from '@yudream/components'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { createMcPanelExtra } from '../../api/api-extra'
 import { MCPANEL_PERMISSION, accountHasPermission } from '../../composables/permissions'
@@ -91,31 +91,28 @@ function confirmDelete(row: Record<string, unknown>) {
 }
 
 onMounted(() => void load())
+
+/** 模板行操作统一收进操作菜单 */
+const rowActions: ActionMenuItem<unknown>[] = [
+  { label: '编辑', icon: 'morph:pencil', visible: () => Boolean(canManage.value), onClick: row => { editing.value = row as never; formOpen.value = true } },
+  { label: '删除', icon: 'morph:trash-2', danger: true, visible: () => Boolean(canDelete.value), onClick: row => confirmDelete(row as never) },
+]
+
 </script>
 
 <template>
-  <YdPageHeader title="服务端模板" description="镜像与服务端模板：安装源、启动命令形态、配置重写与注入开关">
-    <YdButton v-if="canManage" @click="editing = null; formOpen = true">
+  
+  <YdPageMain>
+            <YdTablePageLayout title="服务端模板">
+            <template #actions>
+      <YdButton v-if="canManage" @click="editing = null; formOpen = true">
       <YdIcon name="i-ri:add-line" />
       新建模板
     </YdButton>
-  </YdPageHeader>
-  <YdPageMain>
-    <YdLoadingOverlay :loading="loading"><YdResponsiveTable
-
-      :columns="columns"
-      :data="rows"
-      row-key="key"
-      table-root-class="rounded-lg overflow-hidden"
-      table-class="min-w-[960px]"
-      border
-      stripe
-      column-visibility
-      empty-text="暂无模板，点击右上角「新建模板」创建"
-    >
-      <template #toolbar>
-        <YdSearchBar class="w-full">
-          <div class="mcp-filter-grid">
+            </template>
+            <template #search>
+              <div class="flex flex-wrap items-center gap-2">
+                <div class="mcp-filter-grid">
             <YdInput v-model="filters.keyword" clearable placeholder="Key / 名称" class="w-full" @keydown.enter="search" @clear="search" />
             <YdSelect v-model="filters.kind" :options="KIND_OPTIONS" class="w-full" @change="search" />
             <div class="flex flex-wrap items-center justify-end gap-2">
@@ -128,8 +125,24 @@ onMounted(() => void load())
               </YdButton>
             </div>
           </div>
-        </YdSearchBar>
-      </template>
+              </div>
+            </template>
+            <template #table>
+<YdLoadingOverlay :loading="loading"><YdResponsiveEnhancedTable
+        :actions="rowActions"
+
+      
+      :columns="columns"
+      :data="rows"
+      row-key="key"
+      table-root-class="rounded-lg overflow-hidden"
+      table-class="min-w-[960px]"
+      border
+      stripe
+      column-visibility
+      empty-text="暂无模板，点击右上角「新建模板」创建"
+    >
+      
       <template #cell-kind="{ row }">
         <YdTag :variant="row.original.kind === 'image' ? 'secondary' : 'default'">
           {{ row.original.kind === 'image' ? '镜像' : '服务端' }}
@@ -138,63 +151,19 @@ onMounted(() => void load())
       <template #cell-updatedAt="{ row }">
         {{ formatDateTime(row.original.updatedAt as number | undefined) }}
       </template>
-      <template #cell-operation="{ row }">
-        <div class="mcp-op-cell">
-          <YdButton v-if="canManage" size="sm" variant="outline" @click="editing = row.original; formOpen = true">
-            编辑
-          </YdButton>
-          <YdButton v-if="canDelete" size="sm" variant="destructive" @click="confirmDelete(row.original)">
-            删除
-          </YdButton>
-        </div>
-      </template>
-      <template #card="{ row }">
-        <YdCard class="w-full">
-          <div class="flex flex-col gap-3">
-            <div class="flex items-center justify-between gap-2">
-              <span class="min-w-0 break-words text-base font-semibold">{{ row.name || row.key }}</span>
-              <YdTag :variant="row.kind === 'image' ? 'secondary' : 'default'">
-                {{ row.kind === 'image' ? '镜像' : '服务端' }}
-              </YdTag>
-            </div>
-            <div class="flex flex-col gap-1 text-sm">
-              <div class="flex gap-2">
-                <span class="shrink-0 text-secondary-foreground/60">Key</span>
-                <span class="mcp-mono break-all">{{ row.key }}</span>
-              </div>
-              <div class="flex gap-2">
-                <span class="shrink-0 text-secondary-foreground/60">默认版本</span>
-                <span class="break-all">{{ row.mcVersion || '-' }}</span>
-              </div>
-              <div class="flex gap-2">
-                <span class="shrink-0 text-secondary-foreground/60">镜像</span>
-                <span class="break-all">{{ row.image || '-' }}</span>
-              </div>
-              <div class="flex gap-2">
-                <span class="shrink-0 text-secondary-foreground/60">更新时间</span>
-                <span class="break-all">{{ formatDateTime(row.updatedAt as number | undefined) }}</span>
-              </div>
-            </div>
-            <div class="flex flex-wrap gap-2 border-t pt-3">
-              <YdButton v-if="canManage" size="sm" variant="outline" @click="editing = row; formOpen = true">
-                编辑
-              </YdButton>
-              <YdButton v-if="canDelete" size="sm" variant="destructive" @click="confirmDelete(row)">
-                删除
-              </YdButton>
-            </div>
-          </div>
-        </YdCard>
-      </template>
-    </YdResponsiveTable></YdLoadingOverlay>
-    <YdPagination
+</YdResponsiveEnhancedTable></YdLoadingOverlay>
+            </template>
+            <template #footer>
+      <YdPagination
       v-model:page="pager.page"
       v-model:size="pager.size"
       :total="pager.total"
-      class="mt-3"
       @page-change="() => load()"
       @size-change="() => { pager.page = 1; load() }"
     />
+            </template>
+          </YdTablePageLayout>
+
     <TemplateFormModal v-model:open="formOpen" :sdk="sdk" :template="editing" @saved="() => { toast.success('模板已保存'); load() }" />
   </YdPageMain>
 </template>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { YdLoadingOverlay } from '@yudream/components'
+import { YdLoadingOverlay, YdSettingsLayout, YdSettingsSection } from '@yudream/components'
 import type { ShopCurrency, ShopTradeFeePayee, ShopUserOption } from '../types'
 import type { TableColumn, YdTablePickerQuery, YdTablePickerResult } from '@yudream/components'
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
@@ -182,6 +182,11 @@ async function save() {
 }
 
 onMounted(() => { void load() })
+/** 设置页分区：单分区页保持统一骨架 */
+const activeSection = ref('main')
+const sectionList: { icon?: string, label: string, value: string }[] = [
+  { label: "商店设置", value: 'main' },
+]
 </script>
 
 <template>
@@ -192,7 +197,21 @@ onMounted(() => { void load() })
         保存设置
       </YdButton>
     </YdPageHeader>
-    <YdPageMain>
+    <div class="shop-settings-shell">
+
+  <YdSettingsLayout
+    v-model="activeSection"
+    :list="sectionList"
+    surface
+    scroll
+    width-class="max-w-[880px]"
+  >
+    <template #main>
+      <YdSettingsSection
+        title="交易规则"
+        description="交易与商品发布的基础配置。"
+      >
+
       <YdLoadingOverlay :loading="loading"><div  class="grid max-w-160 gap-5">
         <div class="grid gap-3 rounded-lg border p-4">
           <h3 class="text-base font-semibold">用户上架</h3>
@@ -354,6 +373,10 @@ onMounted(() => { void load() })
           <YdButton :loading="saving" @click="save">保存设置</YdButton>
         </div>
       </div></YdLoadingOverlay>
-    </YdPageMain>
+      </YdSettingsSection>
+    </template>
+  </YdSettingsLayout>
+</div>
+
   </section>
 </template>

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { YdLoadingOverlay } from '@yudream/components'
+import { YdLoadingOverlay, YdTablePageLayout } from '@yudream/components'
 import type { PublishQualification, ShopProductSummary } from '../types'
-import type { TableColumn } from '@yudream/components'
+import type { TableColumn, ActionMenuItem } from '@yudream/components'
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
-import { YdAlert, YdButton, YdCard, YdIcon, YdInput, YdPageHeader, YdPageMain, YdPagination, YdResponsiveTable, YdSearchBar, YdTag, useYdModal, useYdToast } from '@yudream/components'
+import { YdAlert, YdButton, YdIcon, YdInput, YdPageHeader, YdPageMain, YdPagination, YdSearchBar, YdTag, useYdModal, useYdToast, YdResponsiveEnhancedTable } from '@yudream/components'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { createShopApi } from '../api/shop-api'
@@ -126,37 +126,27 @@ onMounted(() => {
   void load()
   void loadQualification()
 })
+
+/** 我的商品行操作：编辑 / 上下架 / 删除 */
+const rowActions: ActionMenuItem<unknown>[] = [
+  { label: '编辑', icon: 'morph:pencil', onClick: row => openEdit(row as never) },
+  { label: row => ((row as { status: string }).status === 'ON_SHELF' ? '下架' : '上架'), icon: 'morph:power', disabled: row => (shelfBlocked && (row as { status: string }).status !== 'ON_SHELF') || actingId.value !== '', onClick: row => toggleShelf(row as never) },
+  { label: '删除', icon: 'morph:trash-2', danger: true, disabled: () => actingId.value !== '', onClick: row => confirmDelete(row as never) },
+]
+
 </script>
 
 <template>
   <section class="shop-page">
-    <YdPageHeader title="我的商品" class="mb-0">
-      <YdButton :disabled="publishBlocked" @click="openCreate">
-        <YdIcon name="i-ri:add-line" />
-        上架商品
-      </YdButton>
-    </YdPageHeader>
     <YdPageMain>
       <YdAlert v-if="publishBlocked" title="当前无法上架商品" class="mb-4">
         <template #description>
           {{ qualification?.reason || '管理员已关闭用户上架功能、积分门槛不足，或当前账号是管理员（只能投放官方积分商品）。' }}
         </template>
       </YdAlert>
-      <YdLoadingOverlay :loading="loading"><YdResponsiveTable
-
-        row-key="id"
-        table-root-class="rounded-lg overflow-hidden"
-        table-class="min-w-[960px]"
-        border
-        stripe
-        column-visibility
-        :columns="columns"
-        :data="rows"
-        :empty-text="publishBlocked ? '还没有商品' : '还没有上架过商品，点击右上角上架第一件商品'"
-      >
-        <template #toolbar>
-          <YdSearchBar class="w-full">
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(220px,1fr)_auto]">
+      <YdTablePageLayout title="我的商品">
+      <template #search>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(220px,1fr)_auto]">
               <YdInput
                 v-model="filters.keyword"
                 placeholder="搜索商品标题或简介，回车查询"
@@ -168,8 +158,28 @@ onMounted(() => {
                 <YdButton variant="outline" :loading="loading" @click="applyFilters">查询</YdButton>
               </div>
             </div>
-          </YdSearchBar>
-        </template>
+      </template>
+    <template #actions>
+      <YdButton :disabled="publishBlocked" @click="openCreate">
+        <YdIcon name="i-ri:add-line" />
+        上架商品
+      </YdButton>
+    </template>
+    <template #table>
+<YdLoadingOverlay :loading="loading"><YdResponsiveEnhancedTable
+        :actions="rowActions"
+
+        
+        row-key="id"
+        table-root-class="rounded-lg overflow-hidden"
+        table-class="min-w-[960px]"
+        border
+        stripe
+        column-visibility
+        :columns="columns"
+        :data="rows"
+        :empty-text="publishBlocked ? '还没有商品' : '还没有上架过商品，点击右上角上架第一件商品'"
+      >
         <template #cell-title="{ row }">
           <div class="flex items-center gap-2">
             <img
@@ -206,88 +216,21 @@ onMounted(() => {
         <template #cell-updatedAt="{ row }">
           {{ formatTime(row.original.updatedAt) }}
         </template>
-        <template #cell-operation="{ row }">
-          <div class="flex-center gap-2">
-            <YdButton size="sm" variant="outline" @click="openEdit(row.original)">编辑</YdButton>
-            <YdButton
-              size="sm"
-              variant="outline"
-              :disabled="shelfBlocked && row.original.status !== 'ON_SHELF'"
-              :loading="actingId === row.original.id"
-              @click="toggleShelf(row.original)"
-            >
-              {{ row.original.status === 'ON_SHELF' ? '下架' : '上架' }}
-            </YdButton>
-            <YdButton
-              size="sm"
-              variant="destructive"
-              :loading="actingId === row.original.id"
-              @click="confirmDelete(row.original)"
-            >
-              删除
-            </YdButton>
-          </div>
-        </template>
-        <template #card="{ row }">
-          <YdCard class="w-full">
-            <div class="flex flex-col gap-3">
-              <div class="flex items-center justify-between gap-2">
-                <span class="min-w-0 break-words text-base font-semibold">{{ row.title }}</span>
-                <YdTag :variant="productStatusTag(row.status).variant">
-                  {{ row.statusText || productStatusTag(row.status).text }}
-                </YdTag>
-              </div>
-              <div class="flex flex-col gap-1 text-sm">
-                <div class="flex gap-2">
-                  <span class="shrink-0 text-secondary-foreground/60">价格</span>
-                  <span class="break-all">{{ row.assetSymbol || '¥' }}{{ formatAmount(row.price) }} {{ row.assetCode }}</span>
-                </div>
-                <div class="flex gap-2">
-                  <span class="shrink-0 text-secondary-foreground/60">库存 / 已售</span>
-                  <span class="break-all">{{ row.stock < 0 ? '不限' : row.stock }} / {{ Number(row.soldCount) || 0 }}</span>
-                </div>
-                <div class="flex gap-2">
-                  <span class="shrink-0 text-secondary-foreground/60">类型</span>
-                  <span class="break-all">{{ productTypeLabel(row.type, row.typeDisplayName) }}<template v-if="Number(row.perUserLimit) > 0"> · 每人限购 {{ perUserLimitText(row.perUserLimit) }}</template></span>
-                </div>
-                <div class="flex gap-2">
-                  <span class="shrink-0 text-secondary-foreground/60">更新时间</span>
-                  <span class="break-all">{{ formatTime(row.updatedAt) }}</span>
-                </div>
-              </div>
-              <div class="flex flex-wrap gap-2 border-t pt-3">
-                <YdButton size="sm" variant="outline" @click="openEdit(row)">编辑</YdButton>
-                <YdButton
-                  size="sm"
-                  variant="outline"
-                  :disabled="shelfBlocked && row.status !== 'ON_SHELF'"
-                  :loading="actingId === row.id"
-                  @click="toggleShelf(row)"
-                >
-                  {{ row.status === 'ON_SHELF' ? '下架' : '上架' }}
-                </YdButton>
-                <YdButton
-                  size="sm"
-                  variant="destructive"
-                  :loading="actingId === row.id"
-                  @click="confirmDelete(row)"
-                >
-                  删除
-                </YdButton>
-              </div>
-            </div>
-          </YdCard>
-        </template>
-      </YdResponsiveTable></YdLoadingOverlay>
-
+</YdResponsiveEnhancedTable></YdLoadingOverlay>
+    </template>
+    <template #footer>
       <YdPagination
         v-model:page="pager.page"
         v-model:size="pager.size"
         :total="pager.total"
-        class="mt-3"
         @page-change="load"
         @size-change="applyFilters"
       />
+    </template>
+  </YdTablePageLayout>
+
+
+
     </YdPageMain>
   </section>
 </template>

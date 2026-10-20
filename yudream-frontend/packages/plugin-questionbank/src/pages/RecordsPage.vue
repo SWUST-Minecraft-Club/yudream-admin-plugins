@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { YdLoadingOverlay } from '@yudream/components'
-import type { TableColumn } from '@yudream/components'
+import { YdLoadingOverlay, YdTablePageLayout } from '@yudream/components'
+import type { TableColumn, ActionMenuItem } from '@yudream/components'
 import type { QuestionBankPluginModel } from '../composables/useQuestionBankPlugin'
 import type { SessionSummary } from '../types'
-import { YdButton, YdIcon, YdPageHeader, YdPageMain, YdPagination, YdResponsiveTable, YdTag, useYdModal } from '@yudream/components'
+import { YdButton, YdIcon, YdPageHeader, YdPageMain, YdPagination, YdTag, useYdModal, YdResponsiveEnhancedTable } from '@yudream/components'
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { difficultyLabel, formatTime, questionTypeLabel } from '../composables/utils'
@@ -60,18 +60,29 @@ function confirmDelete(row: SessionSummary) {
 }
 
 onMounted(() => model.loadMyRecords())
+
+/** 答题记录行操作：继续作答或查看 */
+const rowActions: ActionMenuItem<unknown>[] = [
+  { label: row => ((row as { status: string }).status === 'FINISHED' ? '查看' : '继续作答'), icon: 'morph:play', onClick: row => open(row as never) },
+  { label: '删除', icon: 'morph:trash-2', danger: true, onClick: row => confirmDelete(row as never) },
+]
+
 </script>
 
 <template>
-  <YdPageHeader title="成绩记录" description="我的练习历史，进行中的练习可以继续作答">
-    <YdButton variant="outline" @click="router.push('/platform/plugins/questionbank/papers')">
+  <YdPageMain>
+    <YdTablePageLayout title="成绩记录" :show-search="false">
+    <template #actions>
+      <YdButton variant="outline" @click="router.push('/platform/plugins/questionbank/papers')">
       <YdIcon name="i-ri:file-paper-2-line" />题单作答
     </YdButton>
     <YdButton @click="router.push('/platform/plugins/questionbank')"><YdIcon name="i-ri:play-line" />去练习</YdButton>
-  </YdPageHeader>
-  <YdPageMain>
-    <YdLoadingOverlay :loading="model.loading"><YdResponsiveTable
+    </template>
+    <template #table>
+<YdLoadingOverlay :loading="model.loading"><YdResponsiveEnhancedTable
+        :actions="rowActions"
 
+      
       :columns="columns"
       :data="model.myRecords"
       row-key="id"
@@ -90,40 +101,19 @@ onMounted(() => model.loadMyRecords())
         </YdTag>
       </template>
       <template #cell-submittedAt="{ row }">{{ row.original.status === 'FINISHED' ? formatTime(row.original.submittedAt) : '-' }}</template>
-      <template #cell-operation="{ row }">
-        <div class="flex-center gap-2">
-          <YdButton size="sm" variant="outline" @click="open(row.original)">
-            {{ row.original.status === 'FINISHED' ? '查看' : '继续作答' }}
-          </YdButton>
-          <YdButton size="sm" variant="destructive" @click="confirmDelete(row.original)">删除</YdButton>
-        </div>
-      </template>
-      <template #card="{ row }">
-        <div class="flex flex-col gap-2 text-sm">
-          <div class="flex items-center justify-between">
-            <strong>{{ formatTime(row.createdAt) }}</strong>
-            <YdTag :variant="row.status === 'FINISHED' ? 'default' : 'outline'">
-              {{ row.status === 'FINISHED' ? '已完成' : '进行中' }}
-            </YdTag>
-          </div>
-          <div class="text-secondary-foreground/60">{{ scopeText(row) }}</div>
-          <div>{{ row.totalCount }} 题 · 成绩 {{ accuracy(row) }}</div>
-          <div class="flex gap-2">
-            <YdButton size="sm" variant="outline" @click="open(row)">
-              {{ row.status === 'FINISHED' ? '查看' : '继续作答' }}
-            </YdButton>
-            <YdButton size="sm" variant="destructive" @click="confirmDelete(row)">删除</YdButton>
-          </div>
-        </div>
-      </template>
-    </YdResponsiveTable></YdLoadingOverlay>
-    <YdPagination
+</YdResponsiveEnhancedTable></YdLoadingOverlay>
+    </template>
+    <template #footer>
+      <YdPagination
       v-model:page="model.myRecordsPager.page"
       v-model:size="model.myRecordsPager.size"
       :total="model.myRecordsPager.total"
-      class="mt-3"
       @page-change="model.loadMyRecords"
       @size-change="model.loadMyRecords"
     />
+    </template>
+  </YdTablePageLayout>
+
+
   </YdPageMain>
 </template>

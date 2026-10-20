@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { YdLoadingOverlay } from '@yudream/components'
+import { YdLoadingOverlay, YdTablePageLayout } from '@yudream/components'
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
-import type { TableColumn } from '@yudream/components'
-import type { DescriptionItem } from '@yudream/components'
+import type { DescriptionItem, TableColumn } from '@yudream/components'
 import type { McpEnrollCredential, McpNode, McpNodeContainerStat, McpNodeStateEvent } from '../../types'
-import { YdAlert, YdButton, YdCard, YdDescriptions, YdIcon, YdPageHeader, YdPageMain, YdProgress, YdResponsiveTable, YdTag, useYdModal, useYdToast } from '@yudream/components'
+import { YdAlert, YdButton, YdCard, YdDescriptions, YdIcon, YdPageMain, YdProgress, YdTag, useYdModal, useYdToast, YdResponsiveEnhancedTable } from '@yudream/components'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { createMcPanelApi } from '../../api/mcpanel-api'
@@ -280,38 +279,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <YdPageHeader :title="node?.name || '节点详情'" class="mb-0">
-    <YdButton variant="outline" @click="goList">
-      <YdIcon name="i-ri:arrow-left-line" />
-      返回列表
-    </YdButton>
-    <template v-if="node">
-      <YdButton v-if="canUse && node.hasSecret" variant="outline" @click="router.push(`/platform/plugins/mcpanel/admin/nodes/${nodeId}/terminal`)">
-        <YdIcon name="i-ri:terminal-line" />
-        终端
-      </YdButton>
-      <YdButton v-if="canManage && node.hasSecret" variant="outline" @click="router.push(`/platform/plugins/mcpanel/admin/nodes/${nodeId}/files`)">
-        <YdIcon name="i-ri:folder-line" />
-        文件
-      </YdButton>
-      <YdButton v-if="canManage" variant="outline" :loading="reconnecting" @click="reconnect">
-        <YdIcon name="i-ri:refresh-line" />
-        重连
-      </YdButton>
-      <YdButton v-if="canManage && node.hasSecret === false" variant="outline" :loading="issuing" @click="issueEnrollment">
-        <YdIcon name="i-ri:key-2-line" />
-        签发注册凭据
-      </YdButton>
-      <YdButton v-if="canManage" variant="outline" @click="formOpen = true">
-        <YdIcon name="i-ri:edit-line" />
-        编辑
-      </YdButton>
-      <YdButton v-if="canDelete" variant="destructive" :loading="deleting" @click="confirmDelete">
-        <YdIcon name="i-ri:delete-bin-line" />
-        删除
-      </YdButton>
-    </template>
-  </YdPageHeader>
+  
 
   <YdAlert v-if="loadError" variant="destructive" title="无法加载节点" class="mt-4">
   <template #description>
@@ -379,7 +347,41 @@ onMounted(() => {
           <span>实例容器</span>
           <span class="mcp-status-meta">负载：{{ stats?.load ?? '-' }}</span>
         </div>
-        <YdResponsiveTable
+                <YdTablePageLayout title="node?.name || '节点详情'" :show-search="false">
+            <template #actions>
+      <YdButton variant="outline" @click="goList">
+      <YdIcon name="i-ri:arrow-left-line" />
+      返回列表
+    </YdButton>
+    <template v-if="node">
+      <YdButton v-if="canUse && node.hasSecret" variant="outline" @click="router.push(`/platform/plugins/mcpanel/admin/nodes/${nodeId}/terminal`)">
+        <YdIcon name="i-ri:terminal-line" />
+        终端
+      </YdButton>
+      <YdButton v-if="canManage && node.hasSecret" variant="outline" @click="router.push(`/platform/plugins/mcpanel/admin/nodes/${nodeId}/files`)">
+        <YdIcon name="i-ri:folder-line" />
+        文件
+      </YdButton>
+      <YdButton v-if="canManage" variant="outline" :loading="reconnecting" @click="reconnect">
+        <YdIcon name="i-ri:refresh-line" />
+        重连
+      </YdButton>
+      <YdButton v-if="canManage && node.hasSecret === false" variant="outline" :loading="issuing" @click="issueEnrollment">
+        <YdIcon name="i-ri:key-2-line" />
+        签发注册凭据
+      </YdButton>
+      <YdButton v-if="canManage" variant="outline" @click="formOpen = true">
+        <YdIcon name="i-ri:edit-line" />
+        编辑
+      </YdButton>
+      <YdButton v-if="canDelete" variant="destructive" :loading="deleting" @click="confirmDelete">
+        <YdIcon name="i-ri:delete-bin-line" />
+        删除
+      </YdButton>
+    </template>
+            </template>
+            <template #table>
+<YdResponsiveEnhancedTable
           :columns="containerColumns"
           :data="containers"
           row-key="instanceId"
@@ -395,29 +397,10 @@ onMounted(() => {
           <template #cell-memUsedMb="{ row }">
             {{ formatMib(toNumberOr(row.original.memUsedMb)) }}
           </template>
-          <template #card="{ row }">
-            <YdCard class="w-full">
-              <div class="flex flex-col gap-3">
-                <div class="flex items-center justify-between gap-2">
-                  <span class="mcp-mono min-w-0 break-all text-sm font-semibold">{{ row.instanceId }}</span>
-                  <YdTag :variant="row.state === 'running' ? 'default' : 'secondary'">
-                    {{ row.state || '-' }}
-                  </YdTag>
-                </div>
-                <div class="flex flex-col gap-1 text-sm">
-                  <div class="flex gap-2">
-                    <span class="shrink-0 text-secondary-foreground/60">CPU</span>
-                    <span class="break-all">{{ formatPercent(toNumberOr(row.cpuPercent)) }}</span>
-                  </div>
-                  <div class="flex gap-2">
-                    <span class="shrink-0 text-secondary-foreground/60">内存</span>
-                    <span class="break-all">{{ formatMib(toNumberOr(row.memUsedMb)) }}</span>
-                  </div>
-                </div>
-              </div>
-            </YdCard>
-          </template>
-        </YdResponsiveTable>
+        </YdResponsiveEnhancedTable>
+            </template>
+          </YdTablePageLayout>
+
       </div>
     </YdCard>
 

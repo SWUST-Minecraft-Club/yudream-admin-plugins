@@ -1,21 +1,9 @@
 <script setup lang="ts">
-import { YdLoadingOverlay } from '@yudream/components'
+import { YdLoadingOverlay, YdTablePageLayout } from '@yudream/components'
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
 import type { ServerView } from '../types'
-import {
-  YdButton,
-  YdCard,
-  YdIcon,
-  YdInput,
-  YdModal,
-  YdPageHeader,
-  YdPageMain,
-  YdResponsiveTable,
-  YdSelect,
-  YdTag,
-  useYdToast,
-} from '@yudream/components'
-import type { TableColumn } from '@yudream/components'
+import { YdButton, YdIcon, YdInput, YdModal, YdPageMain, YdSelect, YdTag, useYdToast, YdResponsiveEnhancedTable } from '@yudream/components'
+import type { TableColumn, ActionMenuItem } from '@yudream/components'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useYmclAdapter } from '../composables/useYmclAdapter'
 import { formatTime } from '../composables/ymcl-protocol'
@@ -148,17 +136,26 @@ onMounted(() => {
   void model.loadServers()
   void model.loadPacks()
 })
+
+/** 行操作：维护启动器侧服务器绑定 */
+const rowActions: ActionMenuItem<ServerView>[] = [
+  { label: '绑定', icon: 'morph:link', onClick: row => openEdit(row) },
+]
+
 </script>
 
 <template>
   <div class="ymcl-page">
-    <YdPageHeader title="服务器绑定" description="MIP 附录 B 聚合视图：为启动器成员的服务器指定整合包与更新策略。" />
 
     <YdPageMain>
       <YdCard content-class="ymcl-card-content">
-        <YdLoadingOverlay :loading="model.loading"><YdResponsiveTable
-          table-root-class="max-w-full overflow-x-auto rounded-lg overflow-hidden"
+        <YdTablePageLayout title="服务器绑定" :show-search="false">
+    <template #table>
+<YdLoadingOverlay :loading="model.loading"><YdResponsiveEnhancedTable
+              :actions="rowActions"
 
+          table-root-class="max-w-full overflow-x-auto rounded-lg overflow-hidden"
+          
           :columns="serverColumns"
           :data="model.servers"
           row-key="serverId"
@@ -193,44 +190,10 @@ onMounted(() => {
               绑定
             </YdButton>
           </template>
-          <template #card="{ row }">
-            <YdCard class="w-full">
-              <div class="flex flex-col gap-3">
-                <div class="flex items-center justify-between gap-2">
-                  <span class="min-w-0 break-words text-base font-semibold">{{ serverName(row) }}</span>
-                  <YdTag :variant="statusOnline(row) ? 'default' : 'outline'">
-                    {{ statusLabel(row) }}
-                  </YdTag>
-                </div>
-                <div class="flex flex-col gap-1 text-sm">
-                  <div v-if="row.serverId" class="flex gap-2">
-                    <span class="shrink-0 text-secondary-foreground/60">ID</span>
-                    <span class="ymcl-break">{{ row.serverId }}</span>
-                  </div>
-                  <div class="flex gap-2">
-                    <span class="shrink-0 text-secondary-foreground/60">地址</span>
-                    <code v-if="row.mcAddress" class="ymcl-hash">{{ row.mcAddress }}</code>
-                    <span v-else>-</span>
-                  </div>
-                  <div class="flex gap-2">
-                    <span class="shrink-0 text-secondary-foreground/60">当前绑定</span>
-                    <span class="break-all" :class="row.binding?.packId ? '' : 'ymcl-muted'">{{ bindingSummary(row) }}</span>
-                  </div>
-                  <div class="flex gap-2">
-                    <span class="shrink-0 text-secondary-foreground/60">绑定更新时间</span>
-                    <span class="break-all">{{ formatTime(row.binding?.updatedAt) }}</span>
-                  </div>
-                </div>
-                <div class="flex flex-wrap gap-2 border-t pt-3">
-                  <YdButton size="sm" variant="outline" @click="openEdit(row)">
-                    <YdIcon name="i-ri:link" />
-                    绑定
-                  </YdButton>
-                </div>
-              </div>
-            </YdCard>
-          </template>
-        </YdResponsiveTable></YdLoadingOverlay>
+</YdResponsiveEnhancedTable></YdLoadingOverlay>
+    </template>
+  </YdTablePageLayout>
+
       </YdCard>
     </YdPageMain>
 

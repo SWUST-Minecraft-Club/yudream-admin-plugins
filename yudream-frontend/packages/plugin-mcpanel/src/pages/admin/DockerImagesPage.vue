@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { YdLoadingOverlay } from '@yudream/components'
-import type { TableColumn, YdTablePickerQuery, YdTablePickerResult } from '@yudream/components'
+import { YdLoadingOverlay, YdTablePageLayout } from '@yudream/components'
+import type { TableColumn, YdTablePickerQuery, YdTablePickerResult, ActionMenuItem } from '@yudream/components'
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
 import type { McpNode } from '../../types'
-import { YdAlert, YdButton, YdCard, YdDescriptions, YdIcon, YdInput, YdModal, YdPageHeader, YdPageMain, YdPagination, YdResponsiveTable, YdSelect, YdSwitch, YdTag, YdTextarea, YdTablePicker, useYdModal, useYdToast } from '@yudream/components'
+import { YdAlert, YdButton, YdCard, YdDescriptions, YdIcon, YdInput, YdModal, YdPageMain, YdPagination, YdSelect, YdSwitch, YdTag, YdTextarea, YdTablePicker, useYdModal, useYdToast, YdResponsiveEnhancedTable } from '@yudream/components'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { createMcPanelApi } from '../../api/mcpanel-api'
@@ -457,19 +457,17 @@ const detailItems = computed(() => {
 onMounted(() => {
   void loadCatalog()
 })
+
+/** 镜像行操作：详情 / 删除 */
+const rowActions: ActionMenuItem<unknown>[] = [
+  { label: '详情', icon: 'morph:eye', onClick: row => openDetail(row as never) },
+  { label: '删除', icon: 'morph:trash-2', danger: true, visible: () => canDelete.value, onClick: row => confirmRemoveImage(row as never) },
+]
+
 </script>
 
 <template>
-  <YdPageHeader title="镜像管理" description="管理面板 / 节点 / 镜像管理">
-    <YdButton variant="outline" @click="refreshAll">
-      <YdIcon name="i-ri:refresh-line" />
-      刷新
-    </YdButton>
-    <YdButton v-if="canManage" :disabled="!nodeId" @click="openPull()">
-      <YdIcon name="i-ri:add-line" />
-      新增镜像
-    </YdButton>
-  </YdPageHeader>
+  
 
   <YdPageMain class="mcp-col">
     <YdCard title="远程主机镜像列表" description="镜像构建与容器运行依赖于 Docker 软件，物理主机上所有远程节点将共享所有镜像。">
@@ -488,8 +486,22 @@ onMounted(() => {
         />
       </div>
 
-      <YdLoadingOverlay :loading="loading"><YdResponsiveTable
+              <YdTablePageLayout title="镜像管理" :show-search="false">
+            <template #actions>
+      <YdButton variant="outline" @click="refreshAll">
+      <YdIcon name="i-ri:refresh-line" />
+      刷新
+    </YdButton>
+    <YdButton v-if="canManage" :disabled="!nodeId" @click="openPull()">
+      <YdIcon name="i-ri:add-line" />
+      新增镜像
+    </YdButton>
+            </template>
+            <template #table>
+<YdLoadingOverlay :loading="loading"><YdResponsiveEnhancedTable
+          :actions="rowActions"
 
+        
         :columns="imageColumns"
         :data="pagedImages"
         row-key="id"
@@ -510,53 +522,19 @@ onMounted(() => {
         <template #cell-nameText="{ row }">
           <span class="mcp-mono">{{ row.original.nameText }}</span>
         </template>
-        <template #cell-operation="{ row }">
-          <div class="mcp-op-cell">
-            <YdButton size="sm" variant="outline" @click="openDetail(row.original)">
-              详情
-            </YdButton>
-            <YdButton v-if="canDelete" size="sm" variant="destructive" @click="confirmRemoveImage(row.original)">
-              删除
-            </YdButton>
-          </div>
-        </template>
-        <template #card="{ row }">
-          <YdCard class="w-full">
-            <div class="flex flex-col gap-3">
-              <div class="flex items-center justify-between gap-2">
-                <span class="min-w-0 break-words text-base font-semibold">{{ row.nameText }}</span>
-                <YdTag variant="secondary">{{ row.sizeText }}</YdTag>
-              </div>
-              <div class="flex flex-col gap-1 text-sm">
-                <div class="flex gap-2">
-                  <span class="shrink-0 text-secondary-foreground/60">镜像 ID</span>
-                  <span class="mcp-mono break-all">{{ shortId(row.id) }}</span>
-                </div>
-              </div>
-              <div class="flex flex-wrap gap-2 border-t pt-3">
-                <YdButton size="sm" variant="outline" @click="copyId(row)">
-                  <YdIcon name="i-ri:file-copy-line" />
-                  复制 ID
-                </YdButton>
-                <YdButton size="sm" variant="outline" @click="openDetail(row)">
-                  详情
-                </YdButton>
-                <YdButton v-if="canDelete" size="sm" variant="destructive" @click="confirmRemoveImage(row)">
-                  删除
-                </YdButton>
-              </div>
-            </div>
-          </YdCard>
-        </template>
-      </YdResponsiveTable></YdLoadingOverlay>
-
+      </YdResponsiveEnhancedTable></YdLoadingOverlay>
+            </template>
+            <template #footer>
       <YdPagination
         v-model:page="imagePager.page"
         v-model:size="imagePager.size"
         :total="imagePager.total"
-        class="mt-3"
         @size-change="onImageSizeChange"
       />
+            </template>
+          </YdTablePageLayout>
+
+
 
       <p v-if="pullStatus" class="mcp-status-meta mt-3">
         拉取状态：{{ pullStatus }}
@@ -564,8 +542,8 @@ onMounted(() => {
     </YdCard>
 
     <YdCard title="远程主机容器列表" description="节点上全部 Docker 容器（含非面板启动），MCSM 同款列表。" class="mcp-page-gap">
-      <YdLoadingOverlay :loading="containerLoading"><YdResponsiveTable
-
+      <YdLoadingOverlay :loading="containerLoading"><YdResponsiveEnhancedTable
+        
         :columns="containerColumns"
         :data="allContainers.length ? allContainers : containerRows"
         row-key="id"
@@ -611,7 +589,7 @@ onMounted(() => {
             </div>
           </YdCard>
         </template>
-      </YdResponsiveTable></YdLoadingOverlay>
+      </YdResponsiveEnhancedTable></YdLoadingOverlay>
     </YdCard>
 
     <YdCard title="Java 运行时镜像目录" description="按 Java/JRE 版本维护的内部名称 + 标签，与 Paper 等服务端核心无关；创建服务器时选 Java 运行时。" class="mcp-page-gap">
@@ -632,8 +610,8 @@ onMounted(() => {
         </div>
       </div>
 
-      <YdLoadingOverlay :loading="catalogLoading"><YdResponsiveTable
-
+      <YdLoadingOverlay :loading="catalogLoading"><YdResponsiveEnhancedTable
+        
         :columns="catalogColumns"
         :data="catalogRows"
         row-key="id"
@@ -728,7 +706,7 @@ onMounted(() => {
             </div>
           </YdCard>
         </template>
-      </YdResponsiveTable></YdLoadingOverlay>
+      </YdResponsiveEnhancedTable></YdLoadingOverlay>
       <YdPagination
         v-model:page="catalogPager.page"
         v-model:size="catalogPager.size"

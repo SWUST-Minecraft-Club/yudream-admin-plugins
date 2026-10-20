@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { YdLoadingOverlay } from '@yudream/components'
-import type { TableColumn } from '@yudream/components'
+import { YdLoadingOverlay, YdTablePageLayout } from '@yudream/components'
+import type { TableColumn, ActionMenuItem } from '@yudream/components'
 import type { QuestionBankPluginModel } from '../composables/useQuestionBankPlugin'
 import type { SessionSummary } from '../types'
-import { YdButton, YdDrawer, YdIcon, YdInput, YdPageHeader, YdPageMain, YdPagination, YdResponsiveTable, YdSearchBar, YdSelect, YdTag, useYdModal } from '@yudream/components'
+import { YdButton, YdDrawer, YdIcon, YdInput, YdPageHeader, YdPageMain, YdPagination, YdSearchBar, YdSelect, YdTag, useYdModal, YdResponsiveEnhancedTable } from '@yudream/components'
 import { onMounted, ref } from 'vue'
 import MarkdownPreview from '../components/MarkdownPreview.vue'
 import { formatTime, optionKey } from '../composables/utils'
@@ -113,13 +113,30 @@ function confirmDelete(row: SessionSummary) {
 }
 
 onMounted(() => model.loadAdminRecords())
+
+/** 作答记录行操作 */
+const rowActions: ActionMenuItem<unknown>[] = [
+  { label: '详情', icon: 'morph:eye', onClick: row => openDetail(row as never) },
+  { label: '删除', icon: 'morph:trash-2', danger: true, onClick: row => confirmDelete(row as never) },
+]
+
 </script>
 
 <template>
-  <YdPageHeader title="练习记录" description="跨用户查看全部抽题练习与作答结果" />
   <YdPageMain>
-    <YdLoadingOverlay :loading="model.loading"><YdResponsiveTable
+    <YdTablePageLayout title="练习记录">
+      <template #search>
+        <div class="qb-toolbar">
+            <YdInput v-model="model.adminRecordsFilters.keyword" placeholder="搜索用户昵称或 ID" clearable @keydown.enter="model.applyAdminRecordsFilters" @clear="model.applyAdminRecordsFilters" />
+            <YdSelect v-model="model.adminRecordsFilters.status" :options="statusOptions" @change="model.applyAdminRecordsFilters" />
+            <YdButton variant="outline" @click="model.applyAdminRecordsFilters"><YdIcon name="i-ri:search-line" />查询</YdButton>
+          </div>
+      </template>
+    <template #table>
+<YdLoadingOverlay :loading="model.loading"><YdResponsiveEnhancedTable
+        :actions="rowActions"
 
+      
       :columns="columns"
       :data="model.adminRecords"
       row-key="id"
@@ -128,15 +145,6 @@ onMounted(() => model.loadAdminRecords())
       border stripe
       empty-text="暂无练习记录"
     >
-      <template #toolbar>
-        <YdSearchBar class="w-full">
-          <div class="qb-toolbar">
-            <YdInput v-model="model.adminRecordsFilters.keyword" placeholder="搜索用户昵称或 ID" clearable @keydown.enter="model.applyAdminRecordsFilters" @clear="model.applyAdminRecordsFilters" />
-            <YdSelect v-model="model.adminRecordsFilters.status" :options="statusOptions" @change="model.applyAdminRecordsFilters" />
-            <YdButton variant="outline" @click="model.applyAdminRecordsFilters"><YdIcon name="i-ri:search-line" />查询</YdButton>
-          </div>
-        </YdSearchBar>
-      </template>
       <template #cell-user="{ row }">{{ row.original.userName || row.original.userId }}</template>
       <template #cell-paperName="{ row }">{{ row.original.paperName || '-' }}</template>
       <template #cell-total="{ row }">{{ row.original.totalCount }}</template>
@@ -148,37 +156,20 @@ onMounted(() => model.loadAdminRecords())
       </template>
       <template #cell-createdAt="{ row }">{{ formatTime(row.original.createdAt) }}</template>
       <template #cell-submittedAt="{ row }">{{ formatTime(row.original.submittedAt) }}</template>
-      <template #cell-operation="{ row }">
-        <div class="flex-center gap-2">
-          <YdButton size="sm" variant="outline" @click="openDetail(row.original)">详情</YdButton>
-          <YdButton size="sm" variant="destructive" @click="confirmDelete(row.original)">删除</YdButton>
-        </div>
-      </template>
-      <template #card="{ row }">
-        <div class="flex flex-col gap-2 text-sm">
-          <div class="flex items-center justify-between">
-            <strong class="text-base">{{ row.userName || row.userId }}</strong>
-            <YdTag :variant="row.status === 'FINISHED' ? 'default' : 'outline'">{{ row.status === 'FINISHED' ? '已提交' : '作答中' }}</YdTag>
-          </div>
-          <div class="text-secondary-foreground/60">
-            {{ row.totalCount }} 道题<template v-if="row.status === 'FINISHED'"> · 答对 {{ row.correctCount }} · 正确率 {{ accuracy(row) }}</template>
-          </div>
-          <div class="text-secondary-foreground/60">{{ formatTime(row.createdAt) }}</div>
-          <div class="flex gap-2">
-            <YdButton size="sm" variant="outline" @click="openDetail(row)">详情</YdButton>
-            <YdButton size="sm" variant="destructive" @click="confirmDelete(row)">删除</YdButton>
-          </div>
-        </div>
-      </template>
-    </YdResponsiveTable></YdLoadingOverlay>
-    <YdPagination
+</YdResponsiveEnhancedTable></YdLoadingOverlay>
+    </template>
+    <template #footer>
+      <YdPagination
       v-model:page="model.adminRecordsPager.page"
       v-model:size="model.adminRecordsPager.size"
       :total="model.adminRecordsPager.total"
-      class="mt-3"
       @page-change="model.loadAdminRecords"
       @size-change="model.applyAdminRecordsFilters"
     />
+    </template>
+  </YdTablePageLayout>
+
+
     <YdDrawer v-model="detailOpen" title="练习详情" size="720px">
       <YdLoadingOverlay :loading="detailLoading"><div  class="flex flex-col gap-4">
         <template v-if="detail">

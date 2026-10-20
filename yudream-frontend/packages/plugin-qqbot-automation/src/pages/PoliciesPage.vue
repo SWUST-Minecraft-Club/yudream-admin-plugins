@@ -1,25 +1,7 @@
 <script setup lang="ts">
-import { YdLoadingOverlay } from '@yudream/components'
+import { YdLoadingOverlay, YdTablePageLayout } from '@yudream/components'
 import { computed, onMounted, ref, watch } from 'vue'
-import {
-  YdAlert,
-  YdButton,
-  YdCard,
-  YdDrawer,
-  YdIcon,
-  YdInput,
-  YdPageHeader,
-  YdPageMain,
-  YdPagination,
-  YdSelect,
-  YdResponsiveTable,
-  YdTag,
-  useYdModal,
-  useYdToast,
-  type TableColumn,
-  type YdTablePickerQuery,
-  type YdTablePickerResult,
-} from '@yudream/components'
+import { YdAlert, YdButton, YdDrawer, YdIcon, YdInput, YdPageMain, YdPagination, YdResponsiveEnhancedTable, YdSelect, YdTag, useYdModal, useYdToast, type ActionMenuItem, type StatusColumn, type TableColumn, type YdTablePickerQuery, type YdTablePickerResult } from '@yudream/components'
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
 import { createQqbotAutomationApi } from '../api/qqbot-automation-api'
 import PolicyFieldsForm from '../components/PolicyFieldsForm.vue'
@@ -97,12 +79,28 @@ const groupOptions = computed(() => {
 const editorTitle = computed(() => editorChannelId.value ? `群级覆盖：${groupName(editorChannelId.value)}` : '新增群级覆盖')
 
 const columns: TableColumn<AutomationPolicyOverride>[] = [
-  { id: 'group', header: '群聊', width: 200, fixed: 'left' },
-  { id: 'enabled', header: '策略状态', width: 120, align: 'center' },
-  { id: 'media', header: '媒体解析', width: 110, align: 'center' },
-  { id: 'risk', header: '风险监测', width: 110, align: 'center' },
-  { id: 'overrides', header: '覆盖字段', width: 110, align: 'center' },
-  { id: 'operation', header: '操作', width: 170, fixed: 'right', align: 'center' },
+  { id: 'group', header: '群聊', width: 200 },
+  { id: 'media', header: '媒体解析', width: 110 },
+  { id: 'risk', header: '风险监测', width: 110 },
+  { id: 'overrides', header: '覆盖字段', width: 110 },
+]
+
+/** 策略状态：语义色胶囊 */
+const policyStatusColumn: StatusColumn<AutomationPolicyOverride> = {
+  statusKey: 'enabled',
+  header: '策略状态',
+  width: 120,
+  statusMap: {
+    'true': { label: '已启用', variant: 'default', tone: 'success' },
+    'false': { label: '已关闭', variant: 'destructive', tone: 'danger' },
+    '': { label: '继承默认', variant: 'secondary', tone: 'neutral' },
+  },
+}
+
+/** 行操作统一收进操作菜单，删除保持确认流程 */
+const rowActions: ActionMenuItem<AutomationPolicyOverride>[] = [
+  { label: '编辑', icon: 'morph:pencil', onClick: row => openEdit(row) },
+  { label: '删除', icon: 'morph:trash-2', danger: true, onClick: row => confirmDelete(row) },
 ]
 
 function groupName(channelId: string) {
@@ -160,10 +158,6 @@ function countOverrides(override: AutomationPolicyOverride) {
   return POLICY_OVERRIDE_FIELDS.filter(field => override[field] !== null).length
 }
 
-function policyState(override: AutomationPolicyOverride) {
-  if (override.enabled === null) return { label: '继承默认', variant: 'secondary' as const }
-  return override.enabled ? { label: '已启用', variant: 'default' as const } : { label: '已关闭', variant: 'destructive' as const }
-}
 
 function mediaState(override: AutomationPolicyOverride) {
   if (override.mediaEnabled === null) return '继承默认'
@@ -385,7 +379,6 @@ onMounted(async () => {
 
 <template>
   <section>
-    <YdPageHeader title="群自动化策略" description="配置连接默认策略，并按需为单独群聊覆盖指定字段。" />
 
     <YdPageMain>
       <div class="qqbot-automation-page">
@@ -508,71 +501,43 @@ onMounted(async () => {
         </div>
 
         <div class="qa-card-body">
-          <YdLoadingOverlay :loading="loading"><YdResponsiveTable
-
+          <YdTablePageLayout title="群自动化策略" :show-search="false">
+    <template #table>
+<YdLoadingOverlay :loading="loading"><YdResponsiveEnhancedTable
             row-key="channelId"
-            table-root-class="overflow-hidden rounded-lg"
+            table-root-class="rounded-lg overflow-hidden"
+            table-class="min-w-[720px]"
             border
             stripe
             column-visibility
+            :status-column="policyStatusColumn"
+            :actions="rowActions"
             :columns="columns"
             :data="overrides"
             empty-text="当前连接还没有群级覆盖"
           >
             <template #cell-group="{ row }"><span class="font-medium">{{ groupName(row.original.channelId) }}</span></template>
-            <template #cell-enabled="{ row }"><YdTag :variant="policyState(row.original).variant">{{ policyState(row.original).label }}</YdTag></template>
-            <template #cell-media="{ row }">{{ mediaState(row.original) }}</template>
-            <template #cell-risk="{ row }">{{ riskState(row.original) }}</template>
+            <template #cell-media="{ row }">
+              <span class="yd-status-tone" :data-tone="row.original.mediaEnabled === null ? 'neutral' : row.original.mediaEnabled ? 'success' : 'warning'">{{ mediaState(row.original) }}</span>
+            </template>
+            <template #cell-risk="{ row }">
+              <span class="yd-status-tone" :data-tone="row.original.riskMonitorEnabled === null ? 'neutral' : row.original.riskMonitorEnabled ? 'success' : 'warning'">{{ riskState(row.original) }}</span>
+            </template>
             <template #cell-overrides="{ row }">{{ countOverrides(row.original) }} 项</template>
-            <template #cell-operation="{ row }">
-              <div class="flex-center gap-2">
-                <YdButton size="sm" variant="outline" @click="openEdit(row.original)">编辑</YdButton>
-                <YdButton size="sm" variant="destructive" @click="confirmDelete(row.original)">删除</YdButton>
-              </div>
-            </template>
-            <template #card="{ row }">
-              <YdCard class="w-full">
-                <div class="flex flex-col gap-3">
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="min-w-0 break-words text-base font-semibold">{{ groupName(row.channelId) }}</span>
-                    <div class="flex gap-1">
-                      <YdTag :variant="policyState(row).variant">{{ policyState(row).label }}</YdTag>
-                    </div>
-                  </div>
-                  <div class="flex flex-col gap-1 text-sm">
-                    <div class="flex gap-2">
-                      <span class="shrink-0 text-secondary-foreground/60">群聊 ID</span>
-                      <span class="break-all">{{ row.channelId }}</span>
-                    </div>
-                    <div class="flex gap-2">
-                      <span class="shrink-0 text-secondary-foreground/60">媒体解析</span>
-                      <span>{{ mediaState(row) }}</span>
-                    </div>
-                    <div class="flex gap-2">
-                      <span class="shrink-0 text-secondary-foreground/60">风险监测</span>
-                      <span>{{ riskState(row) }}</span>
-                    </div>
-                    <div class="flex gap-2">
-                      <span class="shrink-0 text-secondary-foreground/60">覆盖字段</span>
-                      <span>{{ countOverrides(row) }} 项</span>
-                    </div>
-                  </div>
-                  <div class="flex flex-wrap gap-2 border-t pt-3">
-                    <YdButton size="sm" variant="outline" @click="openEdit(row)">编辑</YdButton>
-                    <YdButton size="sm" variant="destructive" @click="confirmDelete(row)">删除</YdButton>
-                  </div>
-                </div>
-              </YdCard>
-            </template>
-          </YdResponsiveTable></YdLoadingOverlay>
-
-          <YdPagination
+          </YdResponsiveEnhancedTable></YdLoadingOverlay>
+    </template>
+    <template #footer>
+      <YdPagination
             v-if="connectionId"
             v-model:page="page"
             v-model:size="size"
             :total="total"
-            class="mt-3"
           />
+    </template>
+  </YdTablePageLayout>
+
+
+
         </div>
       </section>
       </div>

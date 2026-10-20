@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { YdLoadingOverlay } from '@yudream/components'
+import { YdLoadingOverlay, YdTablePageLayout } from '@yudream/components'
 import type { ShopOrder } from '../types'
-import type { TableColumn } from '@yudream/components'
+import type { TableColumn, ActionMenuItem } from '@yudream/components'
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
-import { YdButton, YdCard, YdIcon, YdPageHeader, YdPageMain, YdPagination, YdResponsiveTable, YdTag, useYdToast } from '@yudream/components'
+import { YdButton, YdIcon, YdPageHeader, YdPageMain, YdPagination, YdTag, useYdToast, YdResponsiveEnhancedTable } from '@yudream/components'
 import { onMounted, reactive, ref } from 'vue'
 import { createShopApi } from '../api/shop-api'
 import OrderDetailModal from '../components/OrderDetailModal.vue'
@@ -85,19 +85,30 @@ function canVerify(order: ShopOrder) {
 }
 
 onMounted(() => { void load() })
+
+/** 订单行操作：核验 / 详情（可取消时进入详情取消） */
+const rowActions: ActionMenuItem<unknown>[] = [
+  { label: '核验', icon: 'morph:scan', visible: row => canVerify(row as never), onClick: row => openDetail(row as never) },
+  { label: row => ((row as { cancellable?: boolean }).cancellable ? '详情 / 取消' : '详情'), icon: 'morph:eye', onClick: row => openDetail(row as never) },
+]
+
 </script>
 
 <template>
   <section class="shop-page">
-    <YdPageHeader title="我的购买" class="mb-0">
+    <YdPageMain>
+      <YdTablePageLayout title="我的购买" :show-search="false">
+    <template #actions>
       <YdButton variant="outline" :loading="loading" @click="load">
         <YdIcon name="i-ri:refresh-line" />
         刷新
       </YdButton>
-    </YdPageHeader>
-    <YdPageMain>
-      <YdLoadingOverlay :loading="loading"><YdResponsiveTable
+    </template>
+    <template #table>
+<YdLoadingOverlay :loading="loading"><YdResponsiveEnhancedTable
+        :actions="rowActions"
 
+        
         row-key="id"
         table-root-class="rounded-lg overflow-hidden"
         table-class="min-w-[860px]"
@@ -143,68 +154,21 @@ onMounted(() => { void load() })
         <template #cell-createdAt="{ row }">
           {{ formatTime(row.original.createdAt) }}
         </template>
-        <template #cell-operation="{ row }">
-          <div class="flex-center gap-2">
-            <YdButton
-              v-if="canVerify(row.original)"
-              size="sm"
-              @click="openDetail(row.original)"
-            >
-              核验
-            </YdButton>
-            <YdButton size="sm" variant="outline" @click="openDetail(row.original)">
-              {{ row.original.cancellable ? '详情 / 取消' : '详情' }}
-            </YdButton>
-          </div>
-        </template>
-        <template #card="{ row }">
-          <YdCard class="w-full">
-            <div class="flex flex-col gap-3">
-              <div class="flex items-center justify-between gap-2">
-                <span class="min-w-0 break-words text-base font-semibold">{{ row.productTitle }}<template v-if="row.variantName">（{{ row.variantName }}）</template></span>
-                <YdTag :variant="orderStatusTag(row.status).variant">
-                  {{ row.statusText || orderStatusTag(row.status).text }}
-                </YdTag>
-              </div>
-              <div class="flex flex-col gap-1 text-sm">
-                <div class="flex gap-2">
-                  <span class="shrink-0 text-secondary-foreground/60">金额</span>
-                  <span class="break-all">{{ formatAmount(row.totalAmount) }} {{ row.assetCode }} ×{{ row.quantity }}</span>
-                </div>
-                <div class="flex gap-2">
-                  <span class="shrink-0 text-secondary-foreground/60">卖家</span>
-                  <span class="break-all">{{ displayOrderSeller(row) }}</span>
-                </div>
-                <div class="flex gap-2">
-                  <span class="shrink-0 text-secondary-foreground/60">下单时间</span>
-                  <span class="break-all">{{ formatTime(row.createdAt) }}</span>
-                </div>
-              </div>
-              <div class="flex flex-wrap gap-2 border-t pt-3">
-                <YdButton
-                  v-if="canVerify(row)"
-                  size="sm"
-                  @click="openDetail(row)"
-                >
-                  核验
-                </YdButton>
-                <YdButton size="sm" variant="outline" @click="openDetail(row)">
-                  {{ row.cancellable ? '详情 / 取消' : '详情' }}
-                </YdButton>
-              </div>
-            </div>
-          </YdCard>
-        </template>
-      </YdResponsiveTable></YdLoadingOverlay>
-
+</YdResponsiveEnhancedTable></YdLoadingOverlay>
+    </template>
+    <template #footer>
       <YdPagination
         v-model:page="pager.page"
         v-model:size="pager.size"
         :total="pager.total"
-        class="mt-3"
         @page-change="load"
         @size-change="() => { pager.page = 1; void load() }"
       />
+    </template>
+  </YdTablePageLayout>
+
+
+
 
       <OrderDetailModal
         v-model:open="detailOpen"

@@ -1,25 +1,8 @@
 <script setup lang="ts">
-import { YdLoadingOverlay } from '@yudream/components'
+import { YdLoadingOverlay, YdTablePageLayout, YdSettingsLayout } from '@yudream/components'
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
-import type { FileItem, FileUploadRequestOptions, TableColumn } from '@yudream/components'
-import {
-  YdAlert,
-  YdButton,
-  YdCard,
-  YdCheckboxGroup,
-  YdFileUpload,
-  YdInput,
-  YdModal,
-  YdPageHeader,
-  YdPageMain,
-  YdRadioGroup,
-  YdResponsiveTable,
-  YdSelect,
-  YdSwitch,
-  YdTag,
-  useYdModal,
-  useYdToast,
-} from '@yudream/components'
+import type { FileItem, FileUploadRequestOptions, TableColumn, ActionMenuItem } from '@yudream/components'
+import { YdAlert, YdButton, YdCheckboxGroup, YdFileUpload, YdInput, YdModal, YdRadioGroup, YdSelect, YdSwitch, YdTag, useYdModal, useYdToast } from '@yudream/components'
 import { computed, onMounted, reactive, ref } from 'vue'
 import type { McpInjectArtifact } from '../../types'
 import { createMcPanelExtra } from '../../api/api-extra'
@@ -808,20 +791,45 @@ async function save() {
 }
 
 onMounted(() => void load())
+
+/** 注入物行操作：编辑 / 删除（行索引定位） */
+const rowActions: ActionMenuItem<{ index: number }>[] = [
+  { label: '编辑', icon: 'morph:pencil', onClick: row => openArtifactEdit(row.index) },
+  { label: '删除', icon: 'morph:trash-2', danger: true, onClick: row => removeArtifact(row.index) },
+]
+
+/** 设置页分区：单分区保持统一骨架 */
+const activeSection = ref('sec1')
+const sectionList: { icon?: string, label: string, value: string }[] = [
+  { label: "注入下载源（authlib-injector / 时长统计）", value: "sec1" },
+  { label: "下载与导入", value: "sec2" },
+  { label: "实例域名（DNS 自动解析）", value: "sec3" },
+  { label: "单端口入口（mc-router）", value: "sec4" },
+  { label: "多租户与配额", value: "sec5" },
+  { label: "节点贡献（玩家侧）", value: "sec6" },
+  { label: "启动器 P2P 直连", value: "sec7" },
+  { label: "SFTP 网关", value: "sec8" },
+]
 </script>
 
 <template>
-  <YdPageHeader title="面板设置" description="注入下载源、下载与导入、DNS、租户、节点贡献与 P2P 全局配置" />
-  <YdLoadingOverlay :loading="loading"><YdPageMain >
-    <YdAlert v-if="loadError" variant="destructive" title="无法加载设置" class="mb-4">
-  <template #description>
-      {{ loadError }}
-  </template>
-    </YdAlert>
-
-    <div class="flex flex-col gap-4 xl:max-w-[960px]">
-      <YdCard title="注入下载源（authlib-injector / 时长统计）" class="w-full">
-        <div class="mcp-form">
+  <div class="mcp-settings-shell">
+  <YdPageHeader title="面板设置" class="mb-0">
+    <YdButton :loading="saving" @click="save">
+      保存设置
+    </YdButton>
+  </YdPageHeader>
+  <YdLoadingOverlay :loading="loading">
+  <YdSettingsLayout
+    v-model="activeSection"
+    :list="sectionList"
+    surface
+    scroll
+    width-class="max-w-[960px]"
+  >
+    <template #sec1>
+      <YdSettingsSection title="注入下载源（authlib-injector / 时长统计）">
+<div class="mcp-form">
           <label class="flex items-center gap-3 text-sm">
             <YdSwitch v-model="form.authlibEnabled" />
             启用 authlib-injector 注入（Java 系核心以 -javaagent 注入）
@@ -898,7 +906,11 @@ onMounted(() => void load())
                   添加制品
                 </YdButton>
               </div>
-              <YdResponsiveTable
+                      <YdTablePageLayout title="面板设置" :show-search="false">
+            <template #table>
+<YdResponsiveEnhancedTable
+                :actions="rowActions"
+
                 :columns="artifactColumns"
                 :data="artifacts"
                 row-key="name"
@@ -928,62 +940,19 @@ onMounted(() => void load())
                   </div>
                   <span v-else class="mcp-mono block truncate text-xs" :title="row.original.url">{{ row.original.url }}</span>
                 </template>
-                <template #cell-operation="{ row }">
-                  <div class="mcp-op-cell">
-                    <YdButton size="sm" variant="outline" @click="openArtifactEdit(row.index)">
-                      编辑
-                    </YdButton>
-                    <YdButton size="sm" variant="destructive" @click="removeArtifact(row.index)">
-                      删除
-                    </YdButton>
-                  </div>
-                </template>
-                <template #card="{ row, index }">
-                  <YdCard class="w-full">
-                    <div class="flex flex-col gap-3">
-                      <div class="flex items-center justify-between gap-2">
-                        <span class="min-w-0 break-words text-base font-semibold">{{ row.name }}</span>
-                        <YdTag :variant="row.kind === 'mod' ? 'secondary' : 'default'">
-                          {{ row.kind === 'mod' ? '模组' : '插件' }}
-                        </YdTag>
-                      </div>
-                      <div class="flex flex-col gap-1 text-sm">
-                        <div class="flex gap-2">
-                          <span class="shrink-0 text-secondary-foreground/60">加载器</span>
-                          <span class="break-all">{{ row.kind === 'mod' ? ((row.loaders ?? []).join(' / ') || '—') : '—' }}</span>
-                        </div>
-                        <div class="flex gap-2">
-                          <span class="shrink-0 text-secondary-foreground/60">MC 版本</span>
-                          <span class="break-all">{{ mcRangeOf(row) }}</span>
-                        </div>
-                        <div class="flex gap-2">
-                          <span class="shrink-0 text-secondary-foreground/60">来源</span>
-                          <span class="min-w-0 flex-1 break-all">
-                            <template v-if="row.fileId">{{ artifactNameFromFileId(row.fileId) }}</template>
-                            <span v-else class="mcp-mono">{{ row.url || '-' }}</span>
-                          </span>
-                        </div>
-                      </div>
-                      <div class="flex flex-wrap gap-2 border-t pt-3">
-                        <YdButton size="sm" variant="outline" @click="openArtifactEdit(index)">
-                          编辑
-                        </YdButton>
-                        <YdButton size="sm" variant="destructive" @click="removeArtifact(index)">
-                          删除
-                        </YdButton>
-                      </div>
-                    </div>
-                  </YdCard>
-                </template>
-              </YdResponsiveTable>
+              </YdResponsiveEnhancedTable>
+            </template>
+          </YdTablePageLayout>
+
               <span class="mcp-form-hint">插件形态按 MC 版本区分（如 Paper 多版本）；模组形态按加载器（Fabric/Forge/NeoForge/Quilt）与 MC 版本细分。注入链路上线后按实例环境自动挑选匹配制品。</span>
             </div>
           </template>
         </div>
-      </YdCard>
-
-      <YdCard title="下载与导入">
-        <div class="mcp-form">
+      </YdSettingsSection>
+    </template>
+    <template #sec2>
+      <YdSettingsSection title="下载与导入">
+<div class="mcp-form">
           <label class="mcp-form-item">
             <span class="mcp-form-label">FastMirror 基址</span>
             <YdInput v-model="form.fastMirrorBase" clearable placeholder="https://download.fastmirror.net" class="mcp-w-full mcp-mono" />
@@ -1036,10 +1005,11 @@ onMounted(() => void load())
             <YdInput v-model="form.cfApiKey" type="password" :disabled="!form.modpackAllowCurseforge" clearable class="mcp-w-full mcp-mono" />
           </label>
         </div>
-      </YdCard>
-
-      <YdCard title="实例域名（DNS 自动解析）">
-        <div class="mcp-form">
+      </YdSettingsSection>
+    </template>
+    <template #sec3>
+      <YdSettingsSection title="实例域名（DNS 自动解析）">
+<div class="mcp-form">
           <label class="mcp-form-item">
             <span class="mcp-form-label">驱动</span>
             <YdSelect v-model="form.dnsMode" :options="DNS_MODES" class="mcp-w-full" />
@@ -1099,10 +1069,11 @@ onMounted(() => void load())
             </div>
           </template>
         </div>
-      </YdCard>
-
-      <YdCard title="单端口入口（mc-router）">
-        <div class="mcp-form">
+      </YdSettingsSection>
+    </template>
+    <template #sec4>
+      <YdSettingsSection title="单端口入口（mc-router）">
+<div class="mcp-form">
           <label class="mcp-form-item">
             <span class="mcp-form-label">入口 API 地址</span>
             <YdInput v-model="form.entryApiBase" clearable placeholder="http://127.0.0.1:8080" class="mcp-w-full mcp-mono" />
@@ -1157,10 +1128,11 @@ onMounted(() => void load())
             </div>
           </template>
         </div>
-      </YdCard>
-
-      <YdCard title="多租户与配额">
-        <div class="mcp-form">
+      </YdSettingsSection>
+    </template>
+    <template #sec5>
+      <YdSettingsSection title="多租户与配额">
+<div class="mcp-form">
           <label class="flex items-center gap-3 text-sm">
             <YdSwitch v-model="form.tenancyEnabled" />
             启用租户数据范围（按部门/角色绑定；关闭 = 全局管理员直管）
@@ -1174,10 +1146,11 @@ onMounted(() => void load())
             配额计费（钱包软联动；钱包插件未安装时仅记账）
           </label>
         </div>
-      </YdCard>
-
-      <YdCard title="节点贡献（玩家侧）">
-        <div class="mcp-form">
+      </YdSettingsSection>
+    </template>
+    <template #sec6>
+      <YdSettingsSection title="节点贡献（玩家侧）">
+<div class="mcp-form">
           <label class="flex items-center gap-3 text-sm">
             <YdSwitch v-model="form.contributionEnabled" />
             开放玩家贡献节点申请（/me/contributions）
@@ -1206,10 +1179,11 @@ onMounted(() => void load())
           </div>
           <span class="mcp-form-hint">贡献节点为半可信：正式实例默认不调度其上，平台级秘密从不下发。</span>
         </div>
-      </YdCard>
-
-      <YdCard title="启动器 P2P 直连">
-        <div class="mcp-form">
+      </YdSettingsSection>
+    </template>
+    <template #sec7>
+      <YdSettingsSection title="启动器 P2P 直连">
+<div class="mcp-form">
           <label class="flex items-center gap-3 text-sm">
             <YdSwitch v-model="form.p2pEnabled" />
             开启 P2P 信令端点（启动器域插件据此为玩家开「无感直连」会话；玩家流量不经面板）
@@ -1230,10 +1204,11 @@ onMounted(() => void load())
             节点程序需支持 p2p.* 能力（面板会如实显示能力缺口）。当前传输为 TCP 直连，节点需公网可达或已做端口映射。
           </span>
         </div>
-      </YdCard>
-
-      <YdCard title="SFTP 网关">
-        <div class="mcp-form">
+      </YdSettingsSection>
+    </template>
+    <template #sec8>
+      <YdSettingsSection title="SFTP 网关">
+<div class="mcp-form">
           <label class="flex items-center gap-3 text-sm">
             <YdSwitch v-model="form.sftpGatewayEnabled" />
             开启后桌面 SFTP 客户端（WinSCP 等）经面板单端口中转，节点端口不再对使用方暴露
@@ -1252,15 +1227,10 @@ onMounted(() => void load())
             需在防火墙/容器映射中放行该端口；凭据为面板签发的 mc-短别名 + 随机密码，TTL 与节点侧一致（≤2 小时）。
           </p>
         </div>
-      </YdCard>
-    </div>
-
-    <div class="mt-4 flex justify-end">
-      <YdButton :loading="saving" @click="save">
-        保存设置
-      </YdButton>
-    </div>
-
+      </YdSettingsSection>
+    </template>
+  </YdSettingsLayout>
+  </YdLoadingOverlay>
     <YdModal
       v-model="artifactOpen"
       :title="artifactEditingIndex === null ? '添加制品' : '编辑制品'"
@@ -1329,5 +1299,6 @@ onMounted(() => void load())
         </YdAlert>
       </div>
     </YdModal>
-  </YdPageMain></YdLoadingOverlay>
+
+  </div>
 </template>

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { YdLoadingOverlay } from '@yudream/components'
+import { YdLoadingOverlay, YdTablePageLayout } from '@yudream/components'
 import type { YuDreamPluginSdk } from '@yudream/plugin-sdk'
-import type { TableColumn } from '@yudream/components'
-import { YdAction, YdAlert, YdButton, YdCard, YdIcon, YdInput, YdModal, YdPageHeader, YdPageMain, YdPagination, YdProgress, YdResponsiveTable, YdTag, useYdModal, useYdToast } from '@yudream/components'
+import type { TableColumn, ActionMenuItem } from '@yudream/components'
+import { YdAlert, YdButton, YdIcon, YdInput, YdModal, YdPageMain, YdPagination, YdProgress, YdTag, useYdModal, useYdToast, YdResponsiveEnhancedTable } from '@yudream/components'
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { createNodeOpsApi } from '../../api/node-ops-api.ts'
@@ -193,14 +193,19 @@ watch(nodeId, async (id) => {
   catch { /* 文件接口独立显示连接错误。 */ }
 }, { immediate: true })
 onBeforeUnmount(() => { generation++; request++; download.cancel() })
+
+/** 节点文件行操作：打开 / 下载 / 重命名 / 删除 */
+const rowActions: ActionMenuItem<unknown>[] = [
+  { label: '打开', icon: 'morph:file-edit', visible: row => !(row as { isDir?: boolean }).isDir, onClick: row => edit(filePath(row as never)) },
+  { label: '下载', icon: 'morph:download', visible: row => !(row as { isDir?: boolean }).isDir, disabled: () => Boolean(download.active.value), onClick: row => downloadRow(row as never) },
+  { label: '重命名 / 移动', icon: 'morph:pencil', visible: () => canManage.value, disabled: () => busy.value, onClick: row => openForm(row as never) },
+  { label: '删除', icon: 'morph:trash-2', danger: true, visible: () => canManage.value, disabled: () => busy.value, onClick: row => remove(row as never) },
+]
+
 </script>
 
 <template>
-  <YdPageHeader :title="`${name || '节点'} · 文件管理`" description="白名单内的节点文件 · 在线编辑与安全传输" class="mb-0">
-    <YdButton variant="outline" @click="router.push(`/platform/plugins/mcpanel/admin/nodes/${nodeId}`)"><YdIcon name="i-ri:arrow-left-line" />节点详情</YdButton>
-    <YdButton v-if="canManage" variant="outline" :loading="ftpBusy" @click="enableFtp"><YdIcon name="i-ri:key-2-line" />SFTP 连接</YdButton>
-    <YdButton v-if="canManage" @click="openForm()"><YdIcon name="i-ri:folder-add-line" />新建目录</YdButton>
-  </YdPageHeader>
+  
   <YdPageMain class="mcp-file-page">
     <div class="mcp-file-location">
       <YdButton size="sm" variant="outline" :aria-expanded="sideOpen" @click="sideOpen = !sideOpen"><YdIcon name="i-ri:side-bar-line" />目录</YdButton>
@@ -215,7 +220,16 @@ onBeforeUnmount(() => { generation++; request++; download.cancel() })
         <div class="mcp-file-search"><YdInput v-model="keyword" clearable placeholder="搜索当前目录" @keydown.enter="search" @clear="search" /><YdButton variant="outline" :loading="loading" @click="search"><YdIcon name="i-ri:refresh-line" />刷新</YdButton></div>
         <YdAlert v-if="error" variant="destructive" title="目录加载失败" class="mb-4">{{ error }}</YdAlert>
         <div v-if="download.active.value" class="mcp-download-status"><YdIcon name="i-ri:download-line" /><span>{{ download.fileName.value }}</span><YdProgress :model-value="download.progress.value" /><span>{{ download.progress.value }}%</span><YdButton size="sm" variant="outline" @click="download.cancel">取消</YdButton></div>
-        <YdLoadingOverlay :loading="loading"><YdResponsiveTable  :data="rows" :columns="columns" row-key="name" table-root-class="rounded-lg overflow-hidden" table-class="min-w-[800px]" border stripe column-visibility :empty-text="error ? '未能读取目录' : keyword ? '没有匹配的文件' : '此目录为空'">
+                <YdTablePageLayout title="`${name || '节点'} · 文件管理`" :show-search="false">
+            <template #actions>
+      <YdButton variant="outline" @click="router.push(`/platform/plugins/mcpanel/admin/nodes/${nodeId}`)"><YdIcon name="i-ri:arrow-left-line" />节点详情</YdButton>
+    <YdButton v-if="canManage" variant="outline" :loading="ftpBusy" @click="enableFtp"><YdIcon name="i-ri:key-2-line" />SFTP 连接</YdButton>
+    <YdButton v-if="canManage" @click="openForm()"><YdIcon name="i-ri:folder-add-line" />新建目录</YdButton>
+            </template>
+            <template #table>
+<YdLoadingOverlay :loading="loading"><YdResponsiveEnhancedTable
+            :actions="rowActions"
+  :data="rows" :columns="columns" row-key="name" table-root-class="rounded-lg overflow-hidden" table-class="min-w-[800px]" border stripe column-visibility :empty-text="error ? '未能读取目录' : keyword ? '没有匹配的文件' : '此目录为空'">
           <template #cell-name="{ row }"><YdButton variant="ghost" class="mcp-file-name" @click="enter(row.original)"><YdIcon :name="row.original.isDir ? 'i-ri:folder-3-line' : 'i-ri:file-text-line'" />{{ row.original.name }}</YdButton></template>
           <template #cell-type="{ row }">{{ row.original.isDir ? '目录' : '文件' }}</template>
           <template #cell-size="{ row }">{{ row.original.isDir ? '—' : formatSize(row.original.size) }}</template>
@@ -226,47 +240,13 @@ onBeforeUnmount(() => { generation++; request++; download.cancel() })
             <YdButton v-if="canManage" size="icon-sm" variant="ghost" title="重命名或移动" :disabled="busy" @click="openForm(row.original)"><YdIcon name="i-ri:edit-line" /></YdButton>
             <YdButton v-if="canManage" size="icon-sm" variant="ghost" title="删除" class="text-destructive" :disabled="busy" @click="remove(row.original)"><YdIcon name="i-ri:delete-bin-line" /></YdButton>
           </div></template>
-          <template #card="{ row }">
-            <YdCard class="w-full">
-              <div class="flex flex-col gap-3">
-                <div class="flex items-center justify-between gap-2">
-                  <YdAction type="button" class="mcp-file-name min-w-0" @click="enter(row)">
-                    <YdIcon :name="row.isDir ? 'i-ri:folder-3-line' : 'i-ri:file-text-line'" />
-                    <span class="min-w-0 break-all">{{ row.name }}</span>
-                  </YdAction>
-                  <YdTag :variant="row.isDir ? 'secondary' : 'outline'">
-                    {{ row.isDir ? '目录' : '文件' }}
-                  </YdTag>
-                </div>
-                <div class="flex flex-col gap-1 text-sm">
-                  <div class="flex gap-2">
-                    <span class="shrink-0 text-secondary-foreground/60">大小</span>
-                    <span class="break-all">{{ row.isDir ? '—' : formatSize(row.size) }}</span>
-                  </div>
-                  <div class="flex gap-2">
-                    <span class="shrink-0 text-secondary-foreground/60">修改时间</span>
-                    <span class="break-all">{{ formatDateTime(row.modTime as number | string) }}</span>
-                  </div>
-                </div>
-                <div class="flex flex-wrap gap-2 border-t pt-3">
-                  <YdButton v-if="!row.isDir" size="sm" variant="outline" @click="edit(filePath(row))">
-                    打开
-                  </YdButton>
-                  <YdButton v-if="!row.isDir" size="sm" variant="outline" :disabled="download.active.value" @click="downloadRow(row)">
-                    下载
-                  </YdButton>
-                  <YdButton v-if="canManage" size="sm" variant="outline" :disabled="busy" @click="openForm(row)">
-                    重命名
-                  </YdButton>
-                  <YdButton v-if="canManage" size="sm" variant="ghost" class="text-destructive" :disabled="busy" @click="remove(row)">
-                    删除
-                  </YdButton>
-                </div>
-              </div>
-            </YdCard>
-          </template>
-        </YdResponsiveTable></YdLoadingOverlay>
-        <YdPagination v-model:page="pager.page" v-model:size="pager.size" :sizes="[10, 20, 50, 100]" :total="pager.total" class="mt-3" @page-change="() => load()" @size-change="search" />
+        </YdResponsiveEnhancedTable></YdLoadingOverlay>
+            </template>
+            <template #footer>
+      <YdPagination v-model:page="pager.page" v-model:size="pager.size" :sizes="[10, 20, 50, 100]" :total="pager.total" @page-change="() => load()" @size-change="search" />
+            </template>
+          </YdTablePageLayout>
+
       </div>
     </div>
     <YdModal v-model="formOpen" :title="formKind === 'mkdir' ? '新建目录' : '重命名 / 移动'" :confirm-button-loading="busy" :before-close="(action, done) => action === 'confirm' ? submit(done) : busy ? undefined : done()">

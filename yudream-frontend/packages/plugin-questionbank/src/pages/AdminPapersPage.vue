@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { YdLoadingOverlay } from '@yudream/components'
-import type { TableColumn } from '@yudream/components'
+import { YdLoadingOverlay, YdTablePageLayout } from '@yudream/components'
+import type { TableColumn, ActionMenuItem } from '@yudream/components'
 import type { QuestionBankPluginModel } from '../composables/useQuestionBankPlugin'
 import type { PaperView } from '../types'
-import { YdButton, YdIcon, YdInput, YdPageHeader, YdPageMain, YdPagination, YdResponsiveTable, YdSearchBar, YdSelect, YdTag, useYdModal } from '@yudream/components'
+import { YdButton, YdIcon, YdInput, YdPageHeader, YdPageMain, YdPagination, YdSearchBar, YdSelect, YdTag, useYdModal, YdResponsiveEnhancedTable } from '@yudream/components'
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { difficultyLabel, formatTime, questionTypeLabel } from '../composables/utils'
@@ -93,15 +93,34 @@ function confirmDelete(row: PaperView) {
 }
 
 onMounted(() => model.loadAdminPapers())
+
+/** 试卷行操作统一收进操作菜单 */
+const rowActions: ActionMenuItem<unknown>[] = [
+  { label: '编辑', icon: 'morph:pencil', onClick: row => openEdit(row as never) },
+  { label: '打印', icon: 'morph:printer', onClick: row => openPrint(row as never) },
+  { label: '删除', icon: 'morph:trash-2', danger: true, onClick: row => confirmDelete(row as never) },
+]
+
 </script>
 
 <template>
-  <YdPageHeader title="题单管理" description="按规则随机抽题或手动固定选题，发布给用户作答，并可打印纸质试卷">
-    <YdButton @click="openCreate"><YdIcon name="i-ri:add-line" />新建题单</YdButton>
-  </YdPageHeader>
   <YdPageMain>
-    <YdLoadingOverlay :loading="model.loading"><YdResponsiveTable
+    <YdTablePageLayout title="题单管理">
+      <template #search>
+        <div class="qb-toolbar">
+            <YdInput v-model="model.adminPapersFilters.keyword" placeholder="搜索题单名称" clearable @keydown.enter="model.applyAdminPapersFilters" @clear="model.applyAdminPapersFilters" />
+            <YdSelect v-model="model.adminPapersFilters.status" :options="statusOptions" @change="model.applyAdminPapersFilters" />
+            <YdButton variant="outline" @click="model.applyAdminPapersFilters"><YdIcon name="i-ri:search-line" />查询</YdButton>
+          </div>
+      </template>
+    <template #actions>
+      <YdButton @click="openCreate"><YdIcon name="i-ri:add-line" />新建题单</YdButton>
+    </template>
+    <template #table>
+<YdLoadingOverlay :loading="model.loading"><YdResponsiveEnhancedTable
+        :actions="rowActions"
 
+      
       :columns="columns"
       :data="model.adminPapers"
       row-key="id"
@@ -110,15 +129,6 @@ onMounted(() => model.loadAdminPapers())
       border stripe
       empty-text="暂无题单，点击右上角新建"
     >
-      <template #toolbar>
-        <YdSearchBar class="w-full">
-          <div class="qb-toolbar">
-            <YdInput v-model="model.adminPapersFilters.keyword" placeholder="搜索题单名称" clearable @keydown.enter="model.applyAdminPapersFilters" @clear="model.applyAdminPapersFilters" />
-            <YdSelect v-model="model.adminPapersFilters.status" :options="statusOptions" @change="model.applyAdminPapersFilters" />
-            <YdButton variant="outline" @click="model.applyAdminPapersFilters"><YdIcon name="i-ri:search-line" />查询</YdButton>
-          </div>
-        </YdSearchBar>
-      </template>
       <template #cell-mode="{ row }">
         <YdTag :variant="row.original.mode === 'RULE' ? 'default' : 'secondary'">
           {{ row.original.mode === 'RULE' ? '随机抽题' : '固定题目' }}
@@ -130,37 +140,19 @@ onMounted(() => model.loadAdminPapers())
         <YdTag :variant="statusTag(row.original).variant">{{ statusTag(row.original).text }}</YdTag>
       </template>
       <template #cell-updatedAt="{ row }">{{ formatTime(row.original.updatedAt) }}</template>
-      <template #cell-operation="{ row }">
-        <div class="flex-center gap-2">
-          <YdButton size="sm" variant="outline" @click="openEdit(row.original)">编辑</YdButton>
-          <YdButton size="sm" variant="outline" @click="openPrint(row.original)">打印</YdButton>
-          <YdButton size="sm" variant="destructive" @click="confirmDelete(row.original)">删除</YdButton>
-        </div>
-      </template>
-      <template #card="{ row }">
-        <div class="flex flex-col gap-2 text-sm">
-          <div class="flex items-center justify-between gap-2">
-            <strong class="text-base">{{ row.name }}</strong>
-            <YdTag :variant="statusTag(row).variant">{{ statusTag(row).text }}</YdTag>
-          </div>
-          <div class="text-secondary-foreground/60">
-            {{ row.mode === 'RULE' ? '随机抽题' : '固定题目' }} · {{ row.questionCount }} 题 · {{ scopeText(row) }}
-          </div>
-          <div class="flex gap-2">
-            <YdButton size="sm" variant="outline" @click="openEdit(row)">编辑</YdButton>
-            <YdButton size="sm" variant="outline" @click="openPrint(row)">打印</YdButton>
-            <YdButton size="sm" variant="destructive" @click="confirmDelete(row)">删除</YdButton>
-          </div>
-        </div>
-      </template>
-    </YdResponsiveTable></YdLoadingOverlay>
-    <YdPagination
+</YdResponsiveEnhancedTable></YdLoadingOverlay>
+    </template>
+    <template #footer>
+      <YdPagination
       v-model:page="model.adminPapersPager.page"
       v-model:size="model.adminPapersPager.size"
       :total="model.adminPapersPager.total"
-      class="mt-3"
       @page-change="model.loadAdminPapers"
       @size-change="model.applyAdminPapersFilters"
     />
+    </template>
+  </YdTablePageLayout>
+
+
   </YdPageMain>
 </template>
